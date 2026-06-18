@@ -1,0 +1,122 @@
+name: Build Conda Package
+
+on:
+    workflow_call:
+        secrets:
+            prefix_api_token:
+                required: false
+
+        inputs:
+            prefix_channel:
+                required: false
+                type: string
+                default: ${{ vars.PREFIX_CHANNEL }}
+
+        outputs:
+            mode:
+                description: One of dev|release|tagged-release
+                value: ${{ jobs.policy.outputs.mode  }}
+            conda_package_path:
+                description: local path of the built package file
+                value: ${{ jobs.build-conda.outputs.conda_package_path }}
+
+jobs:
+    policy:
+        runs-on: ubuntu-latest
+        outputs:
+            # dev|release|tagged-release (tags or main|develop)
+            mode: ${{ steps.eval.outputs.mode }}
+            # yes|no
+            push_to_conda: ${{ steps.eval.outputs.push_to_conda }}
+
+        steps:
+            - id: eval
+              shell: bash
+              env:
+                  PREFIX_API_KEY: ${{ secrets.prefix_api_token }}
+              run: |
+                  MODE="dev"
+
+                  if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+                    MODE="tagged-release"
+                  fi
+
+                  if [[ "$GITHUB_REF_TYPE" == "branch" ]]; then
+                    if [[ "$GITHUB_REF_NAME" == "main" ]]; then
+                      MODE="release"
+                    fi
+                  fi
+
+                  echo "Resolved build mode: $MODE"
+                  echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+                  if [[ -n "$PREFIX_API_KEY" && "$MODE" == "tagged-release" ]]; then
+                     echo "push_to_conda=yes" >> "$GITHUB_OUTPUT"
+                  else
+                     echo "push_to_conda=no" >> "$GITHUB_OUTPUT"
+                  fi
+
+    build-conda:
+        needs: policy
+        runs-on: "ubuntu-latest"
+        outputs:
+            conda_package_path: ${{ steps.conda-package.outputs.path }}
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Install Pixi
+              uses: prefix-dev/setup-pixi@v0.9.6
+              with:
+                  cache: true
+
+            - name: Patch version for dev build
+              if: needs.policy.outputs.mode == 'dev'
+              run: |
+                  awk -i inplace -v run="$GITHUB_RUN_NUMBER" '
+                    /^[[:space:]]*version[[:space:]]*=/ {
+                      sub(/"$/, ".dev" run "\"")
+                    }
+                    { print }
+                  ' pyproject.toml
+
+                  grep -q "\.dev$GITHUB_RUN_NUMBER\"" pyproject.toml \
+                    || { echo "Version patch failed" >&2; exit 1; }
+
+            - name: Build Conda Package
+              id: conda-package
+              run: |
+                  if pixi run 2>&1 | grep mkconda > /dev/null ; then
+                     pixi run mkconda
+                  else
+                     pixi publish --target-dir ./dist
+                  fi
+                  CONDA_PACKAGE_PATH="$(find ./dist -name '*.conda' | head -1)" 
+                  echo "path=${CONDA_PACKAGE_PATH}" >> $GITHUB_OUTPUT
+
+            - name: Dump Package Content
+              env:
+                  CONDA_PACKAGE_PATH: ${{ steps.conda-package.outputs.path }}
+              run: |
+                  if pixi run hash rattler-build 2> /dev/null; then
+                     pixi run rattler-build package inspect --paths "${CONDA_PACKAGE_PATH}" 
+                  else
+                     echo "Missing rattler-build, can't inspect the package"
+                  fi
+
+            - name: Publish Artifact
+              uses: actions/upload-artifact@v7
+              with:
+                  path: ${{ steps.conda-package.outputs.path }}
+                  archive: false
+
+            - name: Upload to prefix.dev
+              if: ${{ needs.policy.outputs.push_to_conda == 'yes' }}
+              env:
+                  CONDA_PACKAGE_PATH: ${{ steps.conda-package.outputs.path }}
+                  PREFIX_CHANNEL: ${{ inputs.prefix_channel }}
+                  PREFIX_API_KEY: ${{ secrets.prefix_api_token }}
+              run: |
+                  echo "Uploading ${CONDA_PACKAGE_PATH}"
+                  pixi upload prefix "${CONDA_PACKAGE_PATH}"
