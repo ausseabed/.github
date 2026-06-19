@@ -71,6 +71,12 @@ jobs:
               with:
                   cache: true
 
+            - name: Install rattler-build
+              run: |
+                  pixi global install rattler-build
+                  pixi global list
+                  which rattler-build
+
             - name: Patch version for dev build
               if: needs.policy.outputs.mode == 'dev'
               run: |
@@ -99,11 +105,7 @@ jobs:
               env:
                   CONDA_PACKAGE_PATH: ${{ steps.conda-package.outputs.path }}
               run: |
-                  if pixi run command -v rattler-build 2>/dev/null >/dev/null; then
-                     pixi run rattler-build package inspect --paths "${CONDA_PACKAGE_PATH}" 
-                  else
-                     echo "Missing rattler-build, can't inspect the package"
-                  fi
+                  rattler-build package inspect --paths "${CONDA_PACKAGE_PATH}"
 
             - name: Publish Artifact
               uses: actions/upload-artifact@v7
