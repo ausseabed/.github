@@ -99,7 +99,7 @@ jobs:
               env:
                   CONDA_PACKAGE_PATH: ${{ steps.conda-package.outputs.path }}
               run: |
-                  if pixi run hash rattler-build 2> /dev/null; then
+                  if pixi run command -v rattler-build 2>/dev/null >/dev/null; then
                      pixi run rattler-build package inspect --paths "${CONDA_PACKAGE_PATH}" 
                   else
                      echo "Missing rattler-build, can't inspect the package"
