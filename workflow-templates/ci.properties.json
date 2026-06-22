@@ -1,7 +1,8 @@
 {
     "name": "Ausseabed CI",
     "description": "Ausseabed CI: for pixi based python modules",
-    "categroies": [
+    "iconName": "python",
+    "categories": [
         "Python"
     ],
     "filePatterns": [

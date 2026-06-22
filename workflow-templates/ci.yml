@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - "main"
+      - $defualt-branch
   pull_request:
     branches:
-      - "main"
+      - $default-branch 
   workflow_dispatch:
 
 jobs:
