@@ -20,6 +20,12 @@ on:
                 type: string
                 default: "."
 
+            pytest:
+                description: "Whether to run `pixi run pytest` before packaging"
+                required: false
+                type: boolean
+                default: true 
+
         outputs:
             mode:
                 description: One of dev|release|tagged-release
@@ -116,6 +122,16 @@ jobs:
 
                   grep -q "\.dev$GITHUB_RUN_NUMBER\"" pyproject.toml \
                     || { echo "Version patch failed" >&2; exit 1; }
+
+            - name: Run Tests
+              if: inputs.pytest == 'true'
+              run: |
+                  if pixi run 2>&1 | grep pytest > /dev/null ; then
+                     pixi run pytest
+                  else
+                     echo "Add pixi task named `pytest` to run tests or disable tests"
+                     exit 1
+                  fi
 
             - name: Build Conda Package
               id: conda-package
