@@ -124,7 +124,7 @@ jobs:
                     || { echo "Version patch failed" >&2; exit 1; }
 
             - name: Run Tests
-              if: ${{ inputs.pytest == 'true' }}
+              if: ${{ inputs.pytest }}
               run: |
                   if pixi run 2>&1 | grep pytest > /dev/null ; then
                      pixi run pytest
