@@ -11,6 +11,11 @@ on:
 
 jobs:
   ci:
-    uses: ausseabed/.github/.github/workflows/ci.yml@main
+    uses: ausseabed/.github/.github/workflows/ci.yml@v1
+    # with:
+       # Optional parameters:
+       # pytest: false  # disable running tests
+       # working-directory: "path/to/sub-project"  # for prefix-dev/setup-pixi
+       # prefix_channel: "kk-test"
     secrets:
         prefix_api_token: ${{ secrets.PREFIX_API_KEY }}
